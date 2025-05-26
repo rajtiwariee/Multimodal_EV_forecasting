@@ -29,6 +29,8 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1 # Required for Confluent images
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1 # Required for Confluent images
 
+
+
   redis:
     image: redis:7.0-alpine # Use a specific version
     container_name: redis

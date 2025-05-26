@@ -24,6 +24,7 @@ dependencies = [
     "redis>=6.1.0",
     "requests>=2.32.3",
     "rtree>=1.4.0",
+    "ruff>=0.11.11",
     "scikit-learn>=1.6.1",
     "streamlit>=1.45.1",
     "torch>=2.7.0",
@@ -32,10 +33,27 @@ dependencies = [
 ]
 
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = ['py39', 'py310', 'py311','py312'] # Or your target Python versions
+target-version = "py312"
 
-[tool.isort]
-profile = "black"
-line_length = 88
+[tool.ruff.format]
+quote-style = "double"
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = [  # keep only the families you care about
+    "E", "F", "I",
+    "B", "C4", "SIM", "UP",
+    "D212"          # ← keep this doc-string rule if you like
+]
+ignore = [
+    "D203",         # ⚠️  add this line
+    "COM812",       # already conflicting
+    "D211", "D213", # the opposite doc-string pair
+    "D100", "D101"
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+combine-as-imports = true

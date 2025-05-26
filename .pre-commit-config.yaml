@@ -1,10 +1,14 @@
+# .pre-commit-config.yaml
 repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.9          # pin a stable tag
+    hooks:
+      - id: ruff
+        args: ["check", "--fix"]   # auto-fix lint
+      - id: ruff-format            # ⇔ black replacement
+
   - repo: https://github.com/psf/black
     rev: 25.1.0
     hooks:
       - id: black
-
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
+        exclude: "^$"     # disable Black if you rely on ruff-format
