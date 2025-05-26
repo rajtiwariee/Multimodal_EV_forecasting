@@ -1,0 +1,18 @@
+python-dotenv==1.0.0
+kafka-python
+pandas
+pyarrow
+feast
+scikit-learn
+xgboost
+pytorch
+mlflow
+fastapi
+uvicorn
+streamlit
+psycopg2-binary # for postgres connection from python
+redis # python client
+requests # for API calls
+openmeteo-requests # if using openmeteo
+rtree # often a dependency for geopandas if you use it
+geopandas # if dealing with zones as geo-objects
