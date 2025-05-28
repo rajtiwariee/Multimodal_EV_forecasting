@@ -69,6 +69,7 @@ mlartifacts/ # If using local artifact storage
 # IDEs
 .idea/
 .vscode/
+data/warehouse/
 
 # Data files (if they get too large for the repo)
 # data/warehouse/ # Consider this if your sample data becomes very large
@@ -78,3 +79,4 @@ mlartifacts/ # If using local artifact storage
 
 # macOS
 .DS_Store
+airflow_logs/

@@ -5,11 +5,14 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "apache-airflow>=2.11.0",
     "black>=25.1.0",
+    "cryptography>=45.0.3",
     "fastapi>=0.115.12",
     "feast>=0.49.0",
     "flake8>=7.2.0",
     "geopandas>=1.0.1",
+    "ipykernel>=6.29.5",
     "isort>=6.0.1",
     "kafka-python>=2.2.10",
     "mlflow>=2.22.0",
@@ -23,6 +26,8 @@ dependencies = [
     "python-dotenv==1.0.0",
     "redis>=6.1.0",
     "requests>=2.32.3",
+    "requests-cache>=1.2.1",
+    "retry-requests>=2.0.0",
     "rtree>=1.4.0",
     "ruff>=0.11.11",
     "scikit-learn>=1.6.1",
@@ -32,28 +37,37 @@ dependencies = [
     "xgboost>=3.0.2",
 ]
 
-
 [tool.ruff]
-line-length = 88
+line-length = 200
 target-version = "py312"
 
 [tool.ruff.format]
 quote-style = "double"
 line-ending = "lf"
+# ruff-format will also handle import sorting using settings from [tool.ruff.lint.isort]
+# and its own defaults.
 
 [tool.ruff.lint]
-select = [  # keep only the families you care about
-    "E", "F", "I",
-    "B", "C4", "SIM", "UP",
-    "D212"          # ← keep this doc-string rule if you like
+select = [
+    "E", "F", # Pyflakes and pycodestyle errors/warnings
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "UP",   # pyupgrade
+    "D212"  # specific pydocstyle rule (multi-line summary first line)
 ]
 ignore = [
-    "D203",         # ⚠️  add this line
-    "COM812",       # already conflicting
-    "D211", "D213", # the opposite doc-string pair
-    "D100", "D101"
+    "D203",         # "1 blank line required before class docstring" (conflicts with D211)
+    "COM812",       # "Missing trailing comma in multi-line statement" (handled by ruff format)
+    "D211",         # "No blank lines allowed before class docstring"
+    "D213",         # "Multi-line docstring summary should start at the second line" (conflicts with D212)
+    "D100",         # "Missing docstring in public module"
+    "D101",         # "Missing docstring in public class"
+    # Add D102, D103, D104, D105, D107 if you want to ignore missing docstrings in functions, methods etc.
 ]
-
+# The following isort settings will be used by `ruff format` for import sorting
+# and by `ruff check --fix` if "I" rules were selected (but we removed them).
+# `ruff format` picks these up automatically.
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 combine-as-imports = true

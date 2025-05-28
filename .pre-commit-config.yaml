@@ -1,14 +1,10 @@
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.9          # pin a stable tag
+    rev: v0.4.9
     hooks:
       - id: ruff
-        args: ["check", "--fix"]   # auto-fix lint
-      - id: ruff-format            # ⇔ black replacement
+        args: ["--fix", "--unsafe-fixes"] # <--- ADD --unsafe-fixes
+      - id: ruff-format
 
-  - repo: https://github.com/psf/black
-    rev: 25.1.0
-    hooks:
-      - id: black
-        exclude: "^$"     # disable Black if you rely on ruff-format
+  

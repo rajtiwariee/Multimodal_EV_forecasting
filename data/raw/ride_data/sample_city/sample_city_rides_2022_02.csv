@@ -1,0 +1,4 @@
+ride_id,start_time,end_time,start_station_id,end_station_id,start_lat,start_lon,end_lat,end_lon,duration_minutes,bike_id,user_type
+5,2022-02-01T07:30:00,2022-02-01T07:45:00,101,103,40.7128,-74.0060,40.7135,-74.0065,15,sc003,subscriber
+6,2022-02-10T08:15:00,2022-02-10T08:30:00,104,102,40.7140,-74.0080,40.7130,-74.0070,15,sc004,customer
+7,2022-02-20T12:00:00,2022-02-20T12:20:00,105,101,40.7122,-74.0055,40.7128,-74.0060,20,sc002,subscriber

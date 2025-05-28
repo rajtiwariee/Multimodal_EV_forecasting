@@ -2,45 +2,80 @@ version: "3.8"
 
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.3.2 # Use a specific version
+    image: confluentinc/cp-zookeeper:7.3.2
     container_name: zookeeper
     ports:
       - "2181:2181"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep Mode"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka:
-    image: confluentinc/cp-kafka:7.3.2 # Use a specific version
+    image: confluentinc/cp-kafka:7.3.2
     container_name: kafka
     ports:
-      - "${KAFKA_PORT_HOST}:${KAFKA_PORT_HOST}" # For host access
+      # Map host port KAFKA_PORT_HOST (e.g., 29092 from .env)
+      # to container port 29092, where the PLAINTEXT listener is configured.
+      - "${KAFKA_PORT_HOST}:29092" # <--- CRITICAL CHANGE HERE
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     environment:
-      KAFKA_BROKER_ID: ${KAFKA_BROKER_ID}
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${KAFKA_PORT_INTERNAL},PLAINTEXT_HOST://localhost:${KAFKA_PORT_HOST}
+      KAFKA_BROKER_ID: 1 # From .env
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      # KAFKA_LISTENERS:
+      # - INTERNAL listener on port 9092 for communication within the Docker network (e.g., Airflow tasks to Kafka).
+      # - PLAINTEXT listener on port 29092 for communication from outside Docker (e.g., your Python script on the host).
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,PLAINTEXT://0.0.0.0:29092
+
+      # KAFKA_ADVERTISED_LISTENERS:
+      # - INTERNAL advertises 'kafka:9092' (host 'kafka', port 9092), resolvable within Docker.
+      # - PLAINTEXT advertises 'localhost:${KAFKA_PORT_HOST}' (host 'localhost', port from .env, e.g., 29092), resolvable from your Mac.
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,PLAINTEXT://localhost:${KAFKA_PORT_HOST} # <--- MODIFIED FOR CONSISTENCY
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL # Kafka brokers (if you had multiple) would use this.
+
+      # --- Other Kafka variables ---
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1 # Required for Confluent images
-      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1 # Required for Confluent images
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1 # Required for Confluent images
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1 # Required for Confluent images
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    healthcheck:
+      # Healthcheck runs within the Docker network.
+      # It should target the INTERNAL listener (kafka:9092).
+      # KAFKA_PORT_INTERNAL from .env is 9092, which is the port for the INTERNAL listener.
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:${KAFKA_PORT_INTERNAL} || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
-
-
+  # ... (rest of your services: redis, postgres, airflow-scheduler, airflow-webserver) ...
+  # NO CHANGES NEEDED FOR OTHER SERVICES BASED ON THIS ERROR
   redis:
-    image: redis:7.0-alpine # Use a specific version
+    image: redis:7.0-alpine
     container_name: redis
     ports:
       - "${REDIS_PORT}:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
 
   postgres:
-    image: postgres:14-alpine # Use a specific version
+    image: postgres:14-alpine
     container_name: postgres
     ports:
       - "5432:5432"
@@ -48,8 +83,91 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AIRFLOW_DB_NAME: ${AIRFLOW_DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-airflow-db.sh:/docker-entrypoint-initdb.d/init-airflow-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --- Airflow Services Start Here ---
+  airflow-scheduler:
+    build: 
+      context: . 
+      dockerfile: ./docker/airflow/Dockerfile    
+    container_name: airflow_scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    user: "${AIRFLOW_UID}:${AIRFLOW_GID}"
+    env_file:
+      - .env
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${AIRFLOW_DB_NAME}
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=True
+      - PYTHONPATH=/opt/airflow 
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./airflow_logs:/opt/airflow/logs
+      - ./airflow_plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./docker/airflow/entrypoint.sh:/entrypoint.sh
+      - ./src:/opt/airflow/src 
+      - ./scripts:/opt/airflow/scripts 
+    ports:
+      - "8080:8080"
+    command: bash -c "/entrypoint.sh scheduler"
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $$(hostname) || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  airflow-webserver:
+    build: 
+      context: . 
+      dockerfile: ./docker/airflow/Dockerfile    
+    container_name: airflow_webserver
+    depends_on:
+      airflow-scheduler:
+        condition: service_healthy
+    user: "${AIRFLOW_UID}:${AIRFLOW_GID}"
+    env_file:
+      - .env
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${AIRFLOW_DB_NAME}
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=True
+      - PYTHONPATH=/opt/airflow
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./airflow_logs:/opt/airflow/logs
+      - ./airflow_plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./docker/airflow/entrypoint.sh:/entrypoint.sh
+      - ./src:/opt/airflow/src
+      - ./scripts:/opt/airflow/scripts
+    command: bash -c "/entrypoint.sh webserver"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+  # --- Airflow Services End Here ---
 
 volumes:
   postgres_data:

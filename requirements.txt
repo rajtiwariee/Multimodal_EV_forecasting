@@ -1,18 +1,30 @@
+# Core MLOps Project Dependencies (Illustrative)
 python-dotenv==1.0.0
-kafka-python
+
+# Airflow and its direct needs (base image provides Airflow, but good to specify version context)
+apache-airflow
+# psycopg2-binary # Base Airflow image (postgres variant) includes this or compatible. If issues, add specific version.
+# apache-airflow-providers-postgres # If using specific postgres operators/hooks; often included or can be added.
+
+# Data processing & storage
 pandas
-pyarrow
-feast
-scikit-learn
-xgboost
-pytorch
-mlflow
-fastapi
-uvicorn
-streamlit
-psycopg2-binary # for postgres connection from python
-redis # python client
-requests # for API calls
-openmeteo-requests # if using openmeteo
-rtree # often a dependency for geopandas if you use it
-geopandas # if dealing with zones as geo-objects
+pyarrow 
+kafka-python
+# Weather API client and helpers
+openmeteo-requests
+requests-cache
+retry-requests
+requests # Often a dependency, good to list if you use it directly too.
+
+# --- Future Milestones (add as you reach them) ---
+# kafka-python
+# feast
+# scikit-learn
+# xgboost
+# tensorflow # or torch
+# mlflow
+# fastapi
+# uvicorn
+# evidentlyai
+# streamlit
+# psycopg2-binary # If needed by other python scripts connecting to postgres
